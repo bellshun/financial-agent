@@ -144,24 +144,17 @@ program
       const result = await Promise.race([analysisPromise, timeoutPromise]);
       
       console.log(chalk.green('✅ Analysis completed'));
-      console.log('Debug - Result structure:', Object.keys(result));
       
-      // 結果の検証
-      if (!result.finalResult && !result.analyses) {
-        console.log(chalk.yellow('⚠️  Warning: Analysis completed but no results found'));
-        console.log('Debug - Full result:', JSON.stringify(result, null, 2));
-      }
-
       // メモリに保存
       const session: AnalysisSession = {
         sessionId: initialState.sessionId,
         timestamp: initialState.timestamp,
         query: initialState.query,
         symbols: initialState.symbols,
-        finalReport: result.finalResult ? {
-          summary: result.finalResult.summary || 'Analysis completed',
-          recommendations: result.finalResult.recommendations || [],
-          confidence: result.finalResult.confidence || 0
+        finalReport: result.finalReport ? {
+          summary: result.finalReport.overallRecommendation.reasoning || 'Analysis completed',
+          recommendations: result.finalReport.individualRecommendations || [],
+          confidence: result.finalReport.overallRecommendation.confidence || 0
         } : null
       };
       
@@ -169,43 +162,68 @@ program
       await memoryStore.saveState(session);
       console.log(chalk.green('✅ Session saved'));
       
-      // 結果表示の改善
+      // 結果表示
       console.log("\n" + chalk.bold("=".repeat(50)));
       console.log(chalk.bold.blue("📋 FINAL ANALYSIS REPORT"));
       console.log(chalk.bold("=".repeat(50)));
       
-      if (result.finalResult) {
+      if (result.finalReport) {
         console.log(chalk.bold("\n📝 Summary:"));
-        console.log(result.finalResult.summary || 'No summary available');
+        console.log(result.finalReport.overallRecommendation.reasoning || 'No summary available');
         
-        if (result.finalResult.recommendations && result.finalResult.recommendations.length > 0) {
+        if (result.finalReport.individualRecommendations && result.finalReport.individualRecommendations.length > 0) {
           console.log(chalk.bold("\n💡 Recommendations:"));
-          result.finalResult.recommendations.forEach((rec: any, i: number) => {
-            console.log(`${i + 1}. ${chalk.cyan(rec.symbol || 'N/A')}: ${chalk.yellow(rec.action || rec.recommendation)} - ${rec.reason || rec.reasoning}`);
+          result.finalReport.individualRecommendations.forEach((rec: any, i: number) => {
+            console.log(`${i + 1}. ${chalk.cyan(rec.symbol)}: ${chalk.yellow(rec.recommendation)} - ${rec.reasoning.join(', ')}`);
           });
         }
         
-        if (result.finalResult.confidence !== undefined) {
-          console.log(chalk.bold(`\n🎯 Overall Confidence: ${chalk.green(result.finalResult.confidence)}%`));
+        if (result.finalReport.overallRecommendation.confidence !== undefined) {
+          console.log(chalk.bold(`\n🎯 Overall Confidence: ${chalk.green((result.finalReport.overallRecommendation.confidence * 100).toFixed(1))}%`));
+        }
+
+        if (result.finalReport.marketSummary) {
+          console.log(chalk.bold("\n📊 Market Summary:"));
+          console.log(`News Impact: ${result.finalReport.marketSummary.newsImpact}`);
+          console.log(`Sentiment: ${result.finalReport.marketSummary.sentiment}`);
+          if (result.finalReport.marketSummary.keyRisks.length > 0) {
+            console.log("\nKey Risks:");
+            result.finalReport.marketSummary.keyRisks.forEach((risk: string) => {
+              console.log(`- ${risk}`);
+            });
+          }
+          if (result.finalReport.marketSummary.opportunities.length > 0) {
+            console.log("\nOpportunities:");
+            result.finalReport.marketSummary.opportunities.forEach((opp: string) => {
+              console.log(`- ${opp}`);
+            });
+          }
         }
       } else {
         console.log(chalk.yellow("\n⚠️  No final report generated"));
         
         // 個別分析結果を表示
-        if (result.analyses) {
+        if (result.stockAnalysis || result.cryptoAnalysis || result.newsAnalysis) {
           console.log(chalk.bold("\n📊 Individual Analysis Results:"));
-          Object.entries(result.analyses).forEach(([type, analysis]: [string, any]) => {
-            console.log(`\n${chalk.cyan(type.toUpperCase())} Analysis:`);
-            if (analysis.error) {
-              console.log(chalk.red(`  ❌ Error: ${analysis.error}`));
-            } else {
-              console.log(`  ✅ Status: Completed`);
-              // 分析結果の詳細表示（可能な場合）
-              if (analysis.summary) {
-                console.log(`  📝 Summary: ${analysis.summary}`);
-              }
-            }
-          });
+          
+          if (result.stockAnalysis) {
+            console.log(`\n${chalk.cyan('STOCK')} Analysis:`);
+            Object.entries(result.stockAnalysis).forEach(([symbol, analysis]: [string, any]) => {
+              console.log(`  ${symbol}: ${analysis.recommendation} (${analysis.reasoning})`);
+            });
+          }
+          
+          if (result.cryptoAnalysis) {
+            console.log(`\n${chalk.cyan('CRYPTO')} Analysis:`);
+            Object.entries(result.cryptoAnalysis).forEach(([symbol, analysis]: [string, any]) => {
+              console.log(`  ${symbol}: ${analysis.recommendation} (${analysis.reasoning})`);
+            });
+          }
+          
+          if (result.newsAnalysis) {
+            console.log(`\n${chalk.cyan('NEWS')} Analysis:`);
+            console.log(`  ${result.newsAnalysis.summary}`);
+          }
         }
       }
       

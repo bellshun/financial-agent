@@ -1,18 +1,16 @@
-import { BaseAgent } from './base-agent';
 import { AgentState } from '../state';
 import { CryptoData, CryptoAnalysis } from '../types';
 import { MCPClient } from '../../clients/mcp-client';
 import { Logger } from '../../utils/logger';
 // import { startTrace, endTrace } from '../../utils/tracing';
 
-export class CryptoAgent extends BaseAgent {
+export class CryptoAgent {
   private mcpClient: MCPClient;
-  protected override logger: Logger;
+  private logger: Logger;
 
   constructor(mcpClient: MCPClient) {
-    super('crypto-agent');
     this.mcpClient = mcpClient;
-    this.logger = new Logger('CryptoAgent');
+    this.logger = new Logger('crypto-agent');
   }
 
   async analyze(state: AgentState): Promise<Partial<AgentState>> {
@@ -90,15 +88,29 @@ export class CryptoAgent extends BaseAgent {
     
     try {
       // MCP経由でCryptoサーバーからデータ取得
-      const response = await this.mcpClient.callTool('crypto-server', {
-        symbol: symbol.toLowerCase()
-      }) as unknown as CryptoData;
+      const response = await this.mcpClient.callTool({
+        name: 'get_crypto_price',
+        arguments: {
+          symbol: symbol.toLowerCase()
+        }
+      });
       
-      // await endTrace(trace?.id, response);
-      return response;
+      // レスポンスの構造を確認してデータを抽出
+      if (response.content && Array.isArray(response.content)) {
+        const textContent = response.content.find(item => item.type === 'text');
+        if (textContent && textContent.text) {
+          // JSON文字列をパース
+          const cryptoData = JSON.parse(textContent.text) as CryptoData;
+          // await endTrace(trace?.id, cryptoData);
+          return cryptoData;
+        }
+      }
+      
+      throw new Error('Invalid response format from MCP server');
+      
     } catch (error) {
       // フォールバック: モックデータ
-      this.logger.warn(`Using mock data for ${symbol}`);
+      this.logger.warn(`Using mock data for ${symbol}:`, error as any);
       const mockData = this.getMockData(symbol);
       // await endTrace(trace?.id, mockData, error);
       return mockData;

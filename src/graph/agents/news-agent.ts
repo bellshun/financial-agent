@@ -1,17 +1,15 @@
-import { BaseAgent } from './base-agent';
 import { AgentState } from '../state';
 import { NewsArticle, NewsAnalysis } from '../types';
 import { MCPClient } from '../../clients/mcp-client';
 import { Logger } from '../../utils/logger';
 
-export class NewsAgent extends BaseAgent {
+export class NewsAgent {
   private mcpClient: MCPClient;
-  protected override logger: Logger;
+  private logger: Logger;
 
   constructor(mcpClient: MCPClient) {
-    super('news-agent');
     this.mcpClient = mcpClient;
-    this.logger = new Logger('NewsAgent');
+    this.logger = new Logger('news-agent');
   }
 
   async analyze(state: AgentState): Promise<Partial<AgentState>> {
@@ -59,10 +57,24 @@ export class NewsAgent extends BaseAgent {
   private async getMarketNews(symbols: string[]): Promise<NewsArticle[]> {
     try {
       // MCP経由でNewsサーバーからデータ取得
-      const response = await this.mcpClient.callTool('news-server', {
-        symbols,
-        limit: 20
+      const response = await this.mcpClient.callTool({
+        name: 'news-server', 
+        arguments: {
+          symbols,
+          limit: 20
+        }
       });
+
+      // レスポンスの構造を確認してデータを抽出
+      if (response.content && Array.isArray(response.content)) {
+        const textContent = response.content.find(item => item.type === 'text');
+        if (textContent && textContent.text) {
+          // JSON文字列をパース
+          const marketNews = JSON.parse(textContent.text) as NewsArticle[];
+          // await endTrace(trace?.id, marketNews);
+          return marketNews;
+        }
+      }
       
       return response.articles as NewsArticle[];
     } catch (error) {

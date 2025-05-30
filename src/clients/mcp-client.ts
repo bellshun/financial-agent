@@ -1,11 +1,5 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { 
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-  type CallToolResult,
-  type Tool
-} from '@modelcontextprotocol/sdk/types.js';
 import chalk from 'chalk';
 
 export class MCPClient {
@@ -49,86 +43,14 @@ export class MCPClient {
       if (this.transport) {
         await this.transport.close();
       }
-      console.log(chalk.gray(`Disconnected from ${this.serverName}`));
     } catch (error) {
       console.error(chalk.red(`Error disconnecting from ${this.serverName}:`), error);
     }
   }
 
-  async listTools(): Promise<Tool[]> {
-    try {
-      const result = await this.client.listTools();
-      console.log(result);
-      return (result as any).tools || [];
-    } catch (error) {
-      console.error(chalk.red(`Error listing tools from ${this.serverName}:`), error);
-      return [];
-    }
-  }
-
-  async callTool(name: string, arguments_: Record<string, any>): Promise<CallToolResult> {
-    try {
-      const result = await this.client.request(
-        {
-          method: "tools/call",
-          params: {
-            name,
-            arguments: arguments_
-          }
-        },
-        CallToolRequestSchema
-      );
-
-      return result as unknown as CallToolResult;
-      
-    } catch (error) {
-      console.error(chalk.red(`Error calling tool ${name} from ${this.serverName}:`), error);
-      throw error;
-    }
-  }
-
-  // リソースの一覧取得
-  async listResources() {
-    try {
-      return await this.client.listResources();
-    } catch (error) {
-      console.error(chalk.red(`Error listing resources from ${this.serverName}:`), error);
-      return { resources: [] };
-    }
-  }
-
-  // リソースの読み取り
-  async readResource(uri: string) {
-    try {
-      return await this.client.readResource({ uri });
-    } catch (error) {
-      console.error(chalk.red(`Error reading resource ${uri} from ${this.serverName}:`), error);
-      throw error;
-    }
-  }
-
-  // プロンプトの一覧取得
-  async listPrompts() {
-    try {
-      return await this.client.listPrompts();
-    } catch (error) {
-      console.error(chalk.red(`Error listing prompts from ${this.serverName}:`), error);
-      return { prompts: [] };
-    }
-  }
-
-  // プロンプトの取得
-  async getPrompt(name: string, arguments_?: Record<string, any>) {
-    try {
-      return await this.client.getPrompt({
-        name,
-        arguments: arguments_
-      });
-    } catch (error) {
-      console.error(chalk.red(`Error getting prompt ${name} from ${this.serverName}:`), error);
-      throw error;
-    }
-  }
+  // SDKのメソッドを直接呼び出す
+  get listTools() { return this.client.listTools.bind(this.client); }
+  get callTool() { return this.client.callTool.bind(this.client); }
 
   private getServerScript(): string {
     const serverScripts: Record<string, string> = {

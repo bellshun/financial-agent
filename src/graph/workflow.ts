@@ -25,8 +25,6 @@ export class AnalysisWorkflow {
    */
   async initialize(): Promise<void> {
     try {
-      console.log('🚀 Initializing Analysis Workflow...');
-      
       // 必要なMCPクライアントを取得
       const stockClient = await this.mcpManager.getClient('stock-mcp-server');
       const cryptoClient = await this.mcpManager.getClient('crypto-mcp-server');
@@ -59,88 +57,42 @@ export class AnalysisWorkflow {
     
     // エージェントノードを追加
     .addNode("stock_analysis", async (state: AgentState) => {
-      console.log('📈 Stock Analysis State:', state);
       try {
         const result = await this.stockAgent!.analyze(state);
-        console.log('✅ Stock analysis completed');
         return result;
       } catch (error) {
         console.error('❌ Stock analysis failed:', error);
         throw new Error('failed analyses')
-        // エラーハンドリング - 分析失敗でも続行
-        // return {
-        //   ...state,
-        //   analyses: {
-        //     ...state.analyses,
-        //     stock: {
-        //       error: error.message,
-        //       timestamp: new Date().toISOString()
-        //     }
-        //   }
-        // };
       }
     })
     
     .addNode("crypto_analysis", async (state: AgentState) => {
-      console.log('₿ Crypto Analysis State:', state);
       try {
         const result = await this.cryptoAgent!.analyze(state);
-        console.log('✅ Crypto analysis completed');
         return result;
       } catch (error) {
         console.error('❌ Crypto analysis failed:', error);
         throw new Error('failed analyses')
-        // return {
-        //   ...state,
-        //   analyses: {
-        //     ...state.analyses,
-        //     crypto: {
-        //       error: error.message,
-        //       timestamp: new Date().toISOString()
-        //     }
-        //   }
-        // };
       }
     })
     
     .addNode("news_analysis", async (state: AgentState) => {
-      console.log('📰 News Analysis State:', state);
       try {
         const result = await this.newsAgent!.analyze(state);
-        console.log('✅ News analysis completed');
         return result;
       } catch (error) {
         console.error('❌ News analysis failed:', error);
         throw new Error('failed analyses')
-        // return {
-        //   ...state,
-        //   analyses: {
-        //     ...state.analyses,
-        //     news: {
-        //       error: error.message,
-        //       timestamp: new Date().toISOString()
-        //     }
-        //   }
-        // };
       }
     })
     
     .addNode("coordination", async (state: AgentState) => {
-      console.log('🎯 Coordination State:', state);
       try {
         const result = await this.coordinator!.analyze(state);
-        console.log('✅ Coordination completed');
         return result;
       } catch (error) {
         console.error('❌ Coordination failed:', error);
         throw new Error('failed analyses')
-        // return {
-        //   ...state,
-        //   finalResult: {
-        //     error: error.message,
-        //     timestamp: new Date().toISOString()
-        //   }
-        // };
       }
     })
     
@@ -163,7 +115,6 @@ export class AnalysisWorkflow {
 
   // クリーンアップ
   async cleanup(): Promise<void> {
-    console.log('🧹 Cleaning up Analysis Workflow...');
     await this.mcpManager.disconnectAll();
   }
 

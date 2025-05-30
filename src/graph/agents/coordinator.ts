@@ -1,20 +1,18 @@
-import { BaseAgent } from './base-agent';
 import { AgentState } from '../state';
 import { NewsAnalysis, InvestmentRecommendation, FinalReport } from '../types';
 import { Logger } from '../../utils/logger';
 import { MemoryStore } from '../../memory/types';
 
-export class Coordinator extends BaseAgent {
-  protected override logger: Logger;
+export class Coordinator {
+  private logger: Logger;
   private memory: MemoryStore;
 
   constructor(memory: MemoryStore) {
-    super('coordinator');
-    this.logger = new Logger('Coordinator');
+    this.logger = new Logger('coordinator');
     this.memory = memory;
   }
 
-  override async analyze(state: AgentState): Promise<Partial<AgentState>> {
+  async analyze(state: AgentState): Promise<Partial<AgentState>> {
     this.logger.info('Coordinator generating final report');
     
     try {

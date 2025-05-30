@@ -1,17 +1,15 @@
-import { BaseAgent } from './base-agent';
 import { AgentState } from '../state';
 import { StockAnalysis, StockData, TechnicalData } from '../types';
 import { MCPClient } from '../../clients/mcp-client';
 import { Logger } from '../../utils/logger';
 
-export class StockAgent extends BaseAgent {
+export class StockAgent {
   private mcpClient: MCPClient;
-  protected override logger: Logger;
+  private logger: Logger;
 
   constructor(mcpClient: MCPClient) {
-    super('stock-agent');
     this.mcpClient = mcpClient;
-    this.logger = new Logger('StockAgent');
+    this.logger = new Logger('stock-agent');
   }
 
   async analyze(state: AgentState): Promise<Partial<AgentState>> {
@@ -77,11 +75,26 @@ export class StockAgent extends BaseAgent {
 
   private async getStockData(symbol: string): Promise<StockData> {
     try {
-      const response = await this.mcpClient.callTool('stock-server', {
-        symbol: symbol.toUpperCase()
-      }) as unknown as StockData;
+      const response = await this.mcpClient.callTool({
+        name: 'stock-server', 
+        arguments: {
+          symbol: symbol.toUpperCase()
+        }
+      });
       
-      return response;
+      // レスポンスの構造を確認してデータを抽出
+      if (response.content && Array.isArray(response.content)) {
+        const textContent = response.content.find(item => item.type === 'text');
+        if (textContent && textContent.text) {
+          // JSON文字列をパース
+          const stockData = JSON.parse(textContent.text) as StockData;
+          // await endTrace(trace?.id, stockData);
+          return stockData;
+        }
+      }
+      
+      throw new Error('Invalid response format from MCP server');
+      
     } catch (error) {
       this.logger.warn(`Using mock data for ${symbol}`);
       return this.getMockStockData(symbol);
@@ -90,12 +103,26 @@ export class StockAgent extends BaseAgent {
 
   private async getTechnicalData(symbol: string): Promise<TechnicalData> {
     try {
-      const response = await this.mcpClient.callTool('stock-server', {
-        symbol: symbol.toUpperCase(),
-        type: 'technical'
-      }) as unknown as TechnicalData;
-      
-      return response;
+      const response = await this.mcpClient.callTool({
+        name: 'stock-server', 
+        arguments: {
+          symbol: symbol.toUpperCase(),
+          type: 'technical'
+        }
+      });
+
+      // レスポンスの構造を確認してデータを抽出
+      if (response.content && Array.isArray(response.content)) {
+        const textContent = response.content.find(item => item.type === 'text');
+        if (textContent && textContent.text) {
+          // JSON文字列をパース
+          const technicalData = JSON.parse(textContent.text) as TechnicalData;
+          // await endTrace(trace?.id, technicalData);
+          return technicalData;
+        }
+      }
+
+      throw new Error('Invalid response format from MCP server');
     } catch (error) {
       this.logger.warn(`Using mock technical data for ${symbol}`);
       return this.getMockTechnicalData();

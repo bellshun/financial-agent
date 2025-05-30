@@ -21,7 +21,6 @@ export class MCPClientManager {
         await existingClient.listTools();
         return existingClient;
       } catch (error) {
-        console.warn(chalk.yellow(`Existing client for ${serverName} is unhealthy, reconnecting...`));
         await this.disconnectClient(serverName);
       }
     }
@@ -34,7 +33,6 @@ export class MCPClientManager {
     }
 
     this.clients.set(serverName, client);
-    console.log(chalk.blue(`📝 Registered client: ${serverName}`));
     return client;
   }
 
@@ -46,7 +44,6 @@ export class MCPClientManager {
       async ([name, client]) => {
         try {
           await client.disconnect();
-          console.log(chalk.gray(`✅ Disconnected: ${name}`));
         } catch (error) {
           console.error(chalk.red(`❌ Error disconnecting ${name}:`), error);
         }
@@ -64,7 +61,6 @@ export class MCPClientManager {
       try {
         await client.disconnect();
         this.clients.delete(serverName);
-        console.log(chalk.gray(`✅ Disconnected client: ${serverName}`));
       } catch (error) {
         console.error(chalk.red(`❌ Error disconnecting ${serverName}:`), error);
         // エラーでも削除する（ゾンビクライアント回避）
@@ -80,8 +76,6 @@ export class MCPClientManager {
   async healthCheck(): Promise<Record<string, boolean>> {
     const health: Record<string, boolean> = {};
     
-    console.log(chalk.blue('🏥 Performing health check...'));
-    
     for (const [name, client] of this.clients) {
       try {
         await client.listTools();
@@ -89,7 +83,7 @@ export class MCPClientManager {
         console.log(chalk.green(`✅ ${name}: healthy`));
       } catch (error) {
         health[name] = false;
-        console.warn(chalk.yellow(`⚠️  ${name}: unhealthy`), error);
+        console.warn(chalk.yellow(`⚠️  ${name}: unhealthy`));
       }
     }
     
@@ -123,27 +117,6 @@ export class MCPClientManager {
       .length;
     
     console.log(chalk.green(`🎉 Connected to ${successful}/${servers.length} servers`));
-  }
-
-  // 特定のタイプのサーバーからデータを並行取得
-  async executeOnAll<T>(
-    operation: (client: MCPClient, serverName: string) => Promise<T>
-  ): Promise<Record<string, T | Error>> {
-    const results: Record<string, T | Error> = {};
-    
-    const executePromises = Array.from(this.clients.entries()).map(
-      async ([serverName, client]) => {
-        try {
-          const result = await operation(client, serverName);
-          results[serverName] = result;
-        } catch (error) {
-          results[serverName] = error as Error;
-        }
-      }
-    );
-
-    await Promise.allSettled(executePromises);
-    return results;
   }
 }
 
