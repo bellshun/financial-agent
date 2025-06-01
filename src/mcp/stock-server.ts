@@ -194,14 +194,10 @@ export class StockMCPServer {
   }
 
   async start(): Promise<void> {
-    try {
-      console.log('Starting Stock MCP Server...');
-      
+    try {      
       const transport = new StdioServerTransport();
       await this.server.connect(transport);
-      
-      console.log('Stock MCP Server started successfully');
-      
+            
       // プロセスを維持するためのシグナルハンドラ
       process.on('SIGINT', async () => {
         console.log('Received SIGINT signal');
