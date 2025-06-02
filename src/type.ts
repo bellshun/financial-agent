@@ -48,10 +48,10 @@ export interface AnalysisSummary {
 export interface CryptoAnalysisState {
   messages: BaseMessage[];
   query: string;
-  symbols: string[];
+  symbols: string[]; // 分析対象のシンボル文字(ex: bitcoin)
   analysisResults: CryptoAnalysis[];
-  executionPlan: ExecutionPlan;
-  currentStep: number;
+  executionPlan: ExecutionPlan; // LangGraphで実行する実行計画
+  currentStep: number; // 現在のステップ番号
   finalSummary: AnalysisSummary;
   marketContext: string;
   newsContext: NewsData[];

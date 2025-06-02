@@ -1,76 +1,13 @@
-// crypto-analyzer-fixed.ts - 修正版MCPサーバー統合版
 import { StateGraph, END, START } from '@langchain/langgraph';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
 import { Ollama } from 'ollama';
-import { z } from 'zod';
 import { StructuredOutputParser } from '@langchain/core/output_parsers';
-import { AnalysisSummary, CryptoAnalysis, CryptoAnalysisState, ExecutionPlan, ExecutionStep, NewsData } from './type';
-import { createPlanPrompt } from './prompts';
-import { CryptoAnalyzer } from './analyzer';
-import { MCPClientManager } from './mcp-client';
-import { BaseCallbackHandler } from '@langchain/core/callbacks/base';
-
-// Zod スキーマ定義 - 構造化出力用
-const ExecutionPlanSchema = z.object({
-  steps: z.array(z.object({
-    id: z.string(),
-    toolName: z.string(),
-    parameters: z.record(z.any()),
-    description: z.string(),
-    completed: z.boolean().default(false),
-    mcpServer: z.enum(['crypto', 'news', 'stock']).optional(),
-    targetSymbol: z.string().default('')
-  })).default([]),
-  analysisType: z.enum(['technical', 'fundamental', 'sentiment', 'comprehensive']).default('comprehensive'),
-  priority: z.number().default(3)
-});
-
-// シンボルマッピング辞書 - より正確なマッピング
-const SYMBOL_MAPPING: Record<string, string> = {
-  'BTC': 'bitcoin',
-  'BITCOIN': 'bitcoin',
-  'ETH': 'ethereum', 
-  'ETHEREUM': 'ethereum',
-  'ADA': 'cardano',
-  'CARDANO': 'cardano',
-  'SOL': 'solana',
-  'SOLANA': 'solana',
-  'BNB': 'binancecoin',
-  'BINANCE': 'binancecoin',
-  'XRP': 'ripple',
-  'RIPPLE': 'ripple',
-  'DOGE': 'dogecoin',
-  'DOGECOIN': 'dogecoin',
-  'DOT': 'polkadot',
-  'POLKADOT': 'polkadot',
-  'AVAX': 'avalanche-2',
-  'AVALANCHE': 'avalanche-2',
-  'LINK': 'chainlink',
-  'CHAINLINK': 'chainlink',
-  'MATIC': 'polygon',
-  'POLYGON': 'polygon',
-  'UNI': 'uniswap',
-  'UNISWAP': 'uniswap',
-  'LTC': 'litecoin',
-  'LITECOIN': 'litecoin'
-};
-
-export interface WorkflowConfig {
-  ollamaHost?: string;
-  defaultModel?: string;
-  analysisModel?: string;
-  synthesisModel?: string;
-  temperature?: {
-    analysis?: number;
-    synthesis?: number;
-  };
-  mcpServers?: {
-    crypto: { command: string; args: string[] };
-    news: { command: string; args: string[] };
-    stock: { command: string; args: string[] };
-  };
-  callbacks?: BaseCallbackHandler[];
-}
+import { AnalysisSummary, CryptoAnalysis, CryptoAnalysisState, ExecutionPlan, ExecutionStep, NewsData } from '../type';
+import { createPlanPrompt } from '../prompts';
+import { CryptoAnalyzer } from '../analyzer';
+import { MCPClientManager } from '../mcp-client';
+import { SYMBOL_MAPPING, WorkflowConfig } from './config';
+import { ExecutionPlanSchema } from './schema';
 
 export class IntegratedCryptoAnalyzer {
   private ollama: Ollama;
@@ -85,51 +22,29 @@ export class IntegratedCryptoAnalyzer {
       host: config.ollamaHost || 'http://localhost:11434'
     });
 
-    this.analyzer = new CryptoAnalyzer(this.ollama, {
-      defaultModel: config.defaultModel || 'llama3.2',
-      analysisModel: config.analysisModel || config.defaultModel || 'llama3.2',
-      synthesisModel: config.synthesisModel || config.defaultModel || 'llama3.2',
-      temperature: {
-        analysis: config.temperature?.analysis ?? 0.2,
-        synthesis: config.temperature?.synthesis ?? 0.3
-      }
-    });
-
-    this.mcpManager = new MCPClientManager({ mcpServers: config.mcpServers || {
-      crypto: { command: 'tsx', args: ['./src/mcp/crypto-server.ts'] },
-      news: { command: 'tsx', args: ['./src/mcp/news-server.ts'] },
-      stock: { command: 'tsx', args: ['./src/mcp/stock-server.ts'] }
-    }});
-
+    this.analyzer = new CryptoAnalyzer(this.ollama);
+    this.mcpManager = new MCPClientManager(config);
     this.buildGraph();
   }
 
   private buildGraph(): void {
     this.graph = new StateGraph<CryptoAnalysisState>({
       channels: {
-        // メッセージの配列を保持
         messages: { 
           value: (x: BaseMessage[], y: BaseMessage[]) => [...x, ...y],
           default: () => []
         },
-        // クエリ文字列
         query: { default: () => '' },
-        // 分析対象のシンボル配列
         symbols: { default: () => [] },
-        // 分析結果の配列
         analysisResults: { 
           value: (x: CryptoAnalysis[], y: CryptoAnalysis[]) => [...x, ...y],
           default: () => []
         },
-        // 実行計画
         executionPlan: { 
           default: () => ({ steps: [], analysisType: 'comprehensive' as const, priority: 3 })
         },
-        // 現在のステップ番号
         currentStep: { default: () => 0 },
-        // 市場コンテキスト
         marketContext: { default: () => '' },
-        // ニュースコンテキスト
         newsContext: { default: () => [] },
         finalSummary: {
           default: () => ({
@@ -179,6 +94,7 @@ export class IntegratedCryptoAnalyzer {
     await this.mcpManager.initialize();
   }
 
+  // クエリにSYMBOL_MAPPINGが含まれていれば抽出する
   private extractSymbolsFromQuery(query: string): string[] {
     const upperQuery = query.toUpperCase();
     const foundSymbols: string[] = [];
@@ -205,7 +121,7 @@ export class IntegratedCryptoAnalyzer {
 
   private async parseQuery(state: CryptoAnalysisState): Promise<Partial<CryptoAnalysisState>> {
     const { query } = state;
-    
+
     try {
       const symbols = this.extractSymbolsFromQuery(query);
       console.log(`Extracted symbols: ${symbols.join(', ')}`);

@@ -1,4 +1,4 @@
-import { IntegratedCryptoAnalyzer } from '../workflow';
+import { IntegratedCryptoAnalyzer } from '../workflow/workflow';
 import * as graphviz from 'graphviz';
 import { StateGraph } from '@langchain/langgraph';
 import path from 'path';

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import 'dotenv/config';
-import { IntegratedCryptoAnalyzer } from './workflow';
+import { IntegratedCryptoAnalyzer } from './workflow/workflow';
 
 async function main() {
   // コマンドライン引数からクエリを取得
@@ -16,10 +16,7 @@ async function main() {
   console.log(`🚀 暗号通貨分析を開始: ${query}\n`);
 
   try {
-    const analyzer = new IntegratedCryptoAnalyzer({
-      ollamaHost: process.env.OLLAMA_HOST || 'http://localhost:11434',
-      defaultModel: process.env.OLLAMA_MODEL || 'llama3.2',
-    });
+    const analyzer = new IntegratedCryptoAnalyzer();
 
     await analyzer.initialize();
     await analyzer.healthCheck();
