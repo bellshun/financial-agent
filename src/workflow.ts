@@ -8,6 +8,7 @@ import { AnalysisSummary, CryptoAnalysis, CryptoAnalysisState, ExecutionPlan, Ex
 import { createPlanPrompt } from './prompts';
 import { CryptoAnalyzer } from './analyzer';
 import { MCPClientManager } from './mcp-client';
+import { BaseCallbackHandler } from '@langchain/core/callbacks/base';
 
 // Zod スキーマ定義 - 構造化出力用
 const ExecutionPlanSchema = z.object({
@@ -68,6 +69,7 @@ export interface WorkflowConfig {
     news: { command: string; args: string[] };
     stock: { command: string; args: string[] };
   };
+  callbacks?: BaseCallbackHandler[];
 }
 
 export class IntegratedCryptoAnalyzer {
@@ -690,5 +692,10 @@ export class IntegratedCryptoAnalyzer {
       ollama: ollamaHealthy,
       ...mcpHealth
     };
+  }
+
+  // グラフ可視化用のアクセサメソッド
+  public getGraph(): StateGraph<any> {
+    return this.graph;
   }
 }

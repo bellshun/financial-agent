@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+// 環境変数の読み込み
+import 'dotenv/config';
+
 // cli-runner.ts - シンプルなターミナル実行用スクリプト
 import { IntegratedCryptoAnalyzer } from './workflow';
 
@@ -16,10 +19,9 @@ async function main() {
   console.log(`🚀 暗号通貨分析を開始: ${query}\n`);
 
   try {
-    // 分析器の初期化と実行
     const analyzer = new IntegratedCryptoAnalyzer({
       ollamaHost: process.env.OLLAMA_HOST || 'http://localhost:11434',
-      defaultModel: process.env.OLLAMA_MODEL || 'llama3.2'
+      defaultModel: process.env.OLLAMA_MODEL || 'llama3.2',
     });
 
     await analyzer.initialize();
@@ -30,16 +32,16 @@ async function main() {
     console.log('✅ 分析完了\n');
       
     if (result.success) {
-    console.log(`Analysis successful: ${result.results.length} results`);
-    console.log('Summary:', result.summary.summary);
-    console.log('Overall sentiment:', result.summary.overallSentiment);
-    console.log('Confidence:', result.summary.confidenceScore);
+      console.log(`Analysis successful: ${result.results.length} results`);
+      console.log('Summary:', result.summary.summary);
+      console.log('Overall sentiment:', result.summary.overallSentiment);
+      console.log('Confidence:', result.summary.confidenceScore);
     
-    result.results.forEach((analysis, index) => {
+      result.results.forEach((analysis, index) => {
         console.log(`${index + 1}. ${analysis.symbol}: ${analysis.recommendation} (${(analysis.confidence * 100).toFixed(1)}%)`);
-    });
+      });
     } else {
-        console.log('Analysis failed:', result.error);
+      console.log('Analysis failed:', result.error);
     }
   } catch (error) {
     console.error('❌ 分析エラー:', error instanceof Error ? error.message : error);

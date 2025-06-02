@@ -1,9 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { FinancialNewsSchema, NewsAPIResponseSchema, SearchNewsSchema } from "./schemas";
-import dotenv from 'dotenv';
-
-dotenv.config();
+import 'dotenv/config';
 
 // APIキーの取得と検証
 const NEWS_API_KEY = process.env.NEWS_API_KEY;

@@ -1,9 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { AlphaVantageQuoteResponseSchema, AlphaVantageTimeSeriesResponseSchema, StockQuoteSchema, TechnicalIndicatorsSchema } from "./schemas";
-import dotenv from 'dotenv';
+import 'dotenv/config';
 
-dotenv.config();
 const ALPHA_VANTAGE_API_KEY = process.env.ALPHA_VANTAGE_API_KEY;
 
 if (!ALPHA_VANTAGE_API_KEY) {
