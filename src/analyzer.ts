@@ -1,6 +1,5 @@
 import { Ollama } from 'ollama';
 import { z } from 'zod';
-import { StructuredOutputParser } from '@langchain/core/output_parsers';
 import { AnalysisSummary, CryptoAnalysis, NewsData } from './type';
 import { createAnalysisPrompt, createSynthesisPrompt } from './prompts';
 

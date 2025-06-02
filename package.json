@@ -11,7 +11,7 @@
     "analyze": "tsx src/cli-runner.ts",
     "start-mcp-servers": "tsx scripts/start-mcp-servers.ts",
     "type-check": "tsc --noEmit",
-    "visualize": "tsx src/visualize/visualize-workflow.ts"
+    "visualize": "tsx src/visualizer/visualize-workflow.ts"
   },
   "dependencies": {
     "@langchain/core": "^0.3.57",

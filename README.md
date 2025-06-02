@@ -36,6 +36,8 @@ MCPの仕組みやLangGraphのStateGraphを触りながら理解するために�
 npm install
 ```
 
+`.env.example` をコピーして `.env` を作成
+
 ### 2. MCPサーバー起動
 ```bash
 npm run start-mcp-servers

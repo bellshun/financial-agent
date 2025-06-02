@@ -1,37 +1,11 @@
 import { BaseMessage } from "@langchain/core/messages";
 
-export interface CryptoData {
-  symbol: string;
-  price: number;
-  change24h: number;
-  timestamp: string;
-}
-
-export interface MarketData {
-  symbol: string;
-  currentPrice: number;
-  marketCap: number;
-  volume24h: number;
-  priceChange24h: number;
-  recommendation: string;
-  timestamp: string;
-}
-
 export interface NewsData {
   title: string;
   content: string;
   source: string;
   timestamp: string;
   sentiment?: 'positive' | 'negative' | 'neutral';
-}
-
-export interface StockData {
-  symbol: string;
-  price: number;
-  change: number;
-  changePercent: number;
-  volume: number;
-  timestamp: string;
 }
 
 export interface CryptoAnalysis {

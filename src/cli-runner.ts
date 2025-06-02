@@ -1,9 +1,6 @@
 #!/usr/bin/env node
 
-// 環境変数の読み込み
 import 'dotenv/config';
-
-// cli-runner.ts - シンプルなターミナル実行用スクリプト
 import { IntegratedCryptoAnalyzer } from './workflow';
 
 async function main() {
