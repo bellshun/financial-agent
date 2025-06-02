@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CoinGeckoMarketDataSchema, CoinGeckoPriceResponseSchema, CryptoPriceSchema, MarketDataSchema } from "./schemas";
+import { CoinGeckoMarketDataSchema, CoinGeckoPriceResponseSchema, CryptoPriceSchema, MarketDataSchema, SymbolSearchResponseSchema, SymbolSearchSchema } from "./schemas";
 
 /**
  * 暗号通貨データを提供するMCPサーバー
@@ -25,6 +25,10 @@ export class CryptoMCPServer {
       CryptoPriceSchema.shape,
       async ({ symbol }) => {
         try {
+          /**
+           * 仮想通貨の価格情報を取得
+           * https://docs.coingecko.com/v3.0.1/reference/simple-price
+           */
           const url = `https://api.coingecko.com/api/v3/simple/price?ids=${symbol}&vs_currencies=usd&include_24hr_change=true`;
           const response = await fetch(url);
           
@@ -70,6 +74,10 @@ export class CryptoMCPServer {
       MarketDataSchema.shape,
       async ({ symbol }) => {
         try {
+          /**
+           * 仮想通貨のより詳細な情報を取得
+           * https://docs.coingecko.com/v3.0.1/reference/coins-id
+           */
           const url = `https://api.coingecko.com/api/v3/coins/${symbol}`;
           const response = await fetch(url);
           
@@ -101,6 +109,48 @@ export class CryptoMCPServer {
             content: [{
               type: "text",
               text: `Error fetching market data: ${error instanceof Error ? error.message : 'Unknown error'}`
+            }],
+            isError: true
+          };
+        }
+      }
+    );
+
+    // シンボル検索ツール
+    this.server.tool(
+      "search_symbol",
+      SymbolSearchSchema.shape,
+      async ({ input }) => {
+        try {
+          const response = await fetch("https://api.coingecko.com/api/v3/coins/list");
+          if (!response.ok) {
+            throw new Error(`CoinGecko API error: ${response.status} ${response.statusText}`);
+          }
+
+          const rawData = await response.json();
+          const data = SymbolSearchResponseSchema.parse(rawData);
+          const lower = input.toLowerCase();
+
+          const match = data.find(c => lower.includes(c.symbol.toLowerCase()));
+
+          if (!match) {
+            return {
+              content: [{ type: "text", text: `No matching symbol found in input: '${input}'` }],
+              isError: true
+            };
+          }
+
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({ id: match.id, symbol: match.symbol, name: match.name }, null, 2)
+            }]
+          };
+        } catch (error) {
+          return {
+            content: [{
+              type: "text",
+              text: `Error searching symbol: ${error instanceof Error ? error.message : 'Unknown error'}`
             }],
             isError: true
           };

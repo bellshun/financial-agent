@@ -34,6 +34,10 @@ export class StockMCPServer {
       async ({ symbol }) => {
         console.log('Registered tool: get_stock_quote');
         try {
+          /**
+           * 最新の株価情報、前日比情報を取得
+           * https://www.alphavantage.co/documentation/#latestprice
+           */
           const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}`;
           const response = await fetch(url);
           
@@ -62,7 +66,7 @@ export class StockMCPServer {
             symbol: quote["01. symbol"],
             price: parseFloat(quote["05. price"]),
             change: parseFloat(quote["09. change"]),
-            changePercent: quote["10. change percent"],
+            changePercent: quote["10. change percent"], // 前日比の変化率
             timestamp: new Date().toISOString()
           };
           
@@ -86,13 +90,16 @@ export class StockMCPServer {
       }
     );
 
-    // テクニカル指標計算ツール
     this.server.tool(
       "get_technical_indicators",
       TechnicalIndicatorsSchema.shape,
       async ({ symbol, period = "daily" }) => {
         console.log('Registered tool: get_technical_indicators');
         try {
+          /**
+           * 日毎の株価情報を取得
+           * https://www.alphavantage.co/documentation/#daily
+           */
           const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}`;
           const response = await fetch(url);
           

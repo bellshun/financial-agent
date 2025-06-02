@@ -31,6 +31,10 @@ export class NewsMCPServer {
       async ({ symbols, limit = 10 }) => {
         try {
           const query = symbols.join(' OR ');
+          /**
+           * 株式ティッカー(証券コード)を利用して、株価や証券に関するニュースを取得
+           * https://newsapi.org/docs/endpoints/everything
+           */
           const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=${limit}&apiKey=${NEWS_API_KEY}`;
           
           const response = await fetch(url);
@@ -91,12 +95,16 @@ export class NewsMCPServer {
       }
     );
 
-    // 一般ニュース検索ツール（追加機能）
+    // 一般ニュース検索ツール
     this.server.tool(
       "search_news",
       SearchNewsSchema.shape,
       async ({ query, limit = 10, sortBy = "publishedAt" }) => {
         try {
+          /**
+           * 検索キーワードを利用して、ニュース全般を取得する
+           * https://newsapi.org/docs/endpoints/everything
+           */
           const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=en&sortBy=${sortBy}&pageSize=${limit}&apiKey=${NEWS_API_KEY}`;
           
           const response = await fetch(url);
