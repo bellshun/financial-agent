@@ -3,7 +3,6 @@ import { MCPClientManager } from "./mcp-client";
 import { Ollama } from 'ollama';
 import * as readline from "readline";
 import 'dotenv/config';
-import { Client } from "langsmith";
 
 interface Message {
   role: "system" | "user" | "assistant";
@@ -13,14 +12,12 @@ interface Message {
 const main = async () => {
   const ollama = new Ollama({ host: "http://127.0.0.1:11434" });
 
-  // 2. MCPClientManager の初期化・接続
   const manager = new MCPClientManager();
   await manager.initialize();
 
-  // 3. システムメッセージ（ツール情報は動的に処理）
   const systemMessage: Message = {
     role: "system",
-    content: `あなたは株価、暗号通貨、ニュース情報を提供するアシスタントです。
+    content: `あなたは株価、暗号通貨、ニュース情報を提供するAIアシスタントです。
 ユーザーの要求に応じて適切な情報を取得し、分かりやすく回答してください。
 
 利用可能な機能：
@@ -35,10 +32,10 @@ const main = async () => {
   "arguments": { ... }
 }
 
-情報収集が完了したら、JSONではなく自然な日本語で回答してください。`
+情報収集が完了したら、JSONではなく自然な日本語で回答してください。
+データはツールの結果を優先して利用してください。`
   };
 
-  // 4. ターミナル入力の準備
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -54,18 +51,11 @@ const main = async () => {
   console.log("例：「BTCの価格を教えて」「AAPLの株価と関連ニュース5件ください」など。");
   console.log("終了するには exit または quit と入力。\n");
 
-  // 利用可能なツール一覧を表示（デバッグ用）
-  console.log("利用可能なツール:");
-  for (const [toolName, { tool }] of manager["availableTools"].entries()) {
-    console.log(`- ${toolName}: ${(tool as any).description || "No description"}`);
-  }
-  console.log("");
-
   while (true) {
     const userInput = await promptUser();
     if (userInput === "exit" || userInput === "quit") {
       console.log("終了します。");
-      await manager.cleanup?.(); // クリーンアップがあれば実行
+      await manager.cleanup?.();
       rl.close();
       process.exit(0);
     }
@@ -88,7 +78,6 @@ const processUserRequest = async (
   systemMessage: Message,
   userInput: string
 ) => {
-  // 会話メッセージを初期化
   const messages: Message[] = [systemMessage];
   messages.push({ role: "user", content: userInput });
 
@@ -98,19 +87,15 @@ const processUserRequest = async (
   while (iteration < maxIterations) {
     iteration++;
 
-    // Ollama.chat の正しい呼び出し方法
     const response = await ollama.chat({
       model: "llama3.2",
       messages: messages,
       stream: false
     });
 
-    // Ollamaの正しい応答形式: response.message.content
-    const assistantMsg = response.message.content.trim();
-    
-    console.log(`\n[AI応答 ${iteration}]`, assistantMsg); // デバッグ用
+    const assistantMsg = response.message.content.trim();    
+    console.log(`\n[AI応答 ${iteration}]`, assistantMsg);
 
-    // JSON解析を試みる
     let toolCall: { action: string; tool: string; arguments: Record<string, any> } | null = null;
     
     try {
@@ -121,7 +106,6 @@ const processUserRequest = async (
       if (jsonMatch) {
         toolCall = JSON.parse(jsonMatch[1]);
       } else {
-        // 直接JSONの場合
         toolCall = JSON.parse(assistantMsg);
       }
     } catch {
@@ -129,8 +113,8 @@ const processUserRequest = async (
       toolCall = null;
     }
 
+    // ツール呼び出しの場合
     if (toolCall?.action === "use_tool" && toolCall.tool && toolCall.arguments) {
-      // ツール呼び出し
       const toolName = toolCall.tool;
       const args = toolCall.arguments;
 
@@ -164,7 +148,6 @@ const processUserRequest = async (
       }
 
     } else {
-      // 最終回答
       console.log("\n【回答】");
       console.log(assistantMsg);
       console.log("\n-----------------------------\n");

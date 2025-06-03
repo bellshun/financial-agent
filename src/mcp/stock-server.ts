@@ -1,6 +1,5 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { AlphaVantageQuoteResponseSchema, AlphaVantageTimeSeriesResponseSchema, StockQuoteSchema, TechnicalIndicatorsSchema } from "./schemas";
+import { StockQuoteSchema, TechnicalIndicatorsSchema } from "./schemas";
+import { BaseMCPServer } from "./base-mcp-server";
 import 'dotenv/config';
 
 const ALPHA_VANTAGE_API_KEY = process.env.ALPHA_VANTAGE_API_KEY;
@@ -13,225 +12,44 @@ if (!ALPHA_VANTAGE_API_KEY) {
 /**
  * 株価データを提供するMCPサーバー
  */
-export class StockMCPServer {
-  private server: McpServer;
-
+export class StockMCPServer extends BaseMCPServer {
   constructor() {
-    // MCPサーバーを作成
-    this.server = new McpServer({
-      name: "stock-mcp-server",
-      version: "1.0.0"
-    });
-
-    this.setupTools();
+    super("stock-mcp-server", "1.0.0");
   }
 
-  private setupTools() {
+  protected setupTools(): void {
+    const baseUrl = 'https://www.alphavantage.co/query';
+
     // 株価取得ツール
     this.server.tool(
       "get_stock_quote",
+      "This endpoint returns the latest price and volume information for a ticker of your choice. You can specify one ticker per API request.",
       StockQuoteSchema.shape,
-      async ({ symbol }) => {
+      async ({ symbol }, extra) => {
         console.log('Registered tool: get_stock_quote');
-        try {
-          /**
-           * 最新の株価情報、前日比情報を取得
-           * https://www.alphavantage.co/documentation/#latestprice
-           */
-          const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}`;
-          const response = await fetch(url);
-          
-          if (!response.ok) {
-            throw new Error(`Alpha Vantage API error: ${response.status} ${response.statusText}`);
-          }
-          
-          const rawData = await response.json();
-          const data = AlphaVantageQuoteResponseSchema.parse(rawData);
-          
-          // APIエラーチェック
-          if (data["Error Message"]) {
-            throw new Error(`Alpha Vantage API Error: ${data["Error Message"]}`);
-          }
-          
-          if (data["Note"]) {
-            throw new Error(`Alpha Vantage API Limit: ${data["Note"]}`);
-          }
-          
-          if (!data["Global Quote"]) {
-            throw new Error(`No data found for symbol: ${symbol}`);
-          }
-          
-          const quote = data["Global Quote"];
-          const result = {
-            symbol: quote["01. symbol"],
-            price: parseFloat(quote["05. price"]),
-            change: parseFloat(quote["09. change"]),
-            changePercent: quote["10. change percent"], // 前日比の変化率
-            timestamp: new Date().toISOString()
-          };
-          
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify(result, null, 2)
-            }]
-          };
-        } catch (error) {
-          console.error('Error fetching stock quote:', error);
-          
-          return {
-            content: [{
-              type: "text",
-              text: `Error fetching stock quote for ${symbol}: ${error instanceof Error ? error.message : 'Unknown error'}`
-            }],
-            isError: true
-          };
-        }
+        /**
+         * 最新の株価情報、前日比情報を取得
+         * https://www.alphavantage.co/documentation/#latestprice
+         */
+        const url = `${baseUrl}?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}`;
+        return this.executeApiRequest(url, `Error fetching stock quote for ${symbol}`);
       }
     );
 
     this.server.tool(
       "get_technical_indicators",
+      "This API returns raw (as-traded) daily time series (date, daily open, daily high, daily low, daily close, daily volume) of the global equity specified, covering 20+ years of historical data. The OHLCV data is sometimes called candles in finance literature",
       TechnicalIndicatorsSchema.shape,
-      async ({ symbol, period = "daily" }) => {
+      async ({ symbol, period = "daily" }, extra) => {
         console.log('Registered tool: get_technical_indicators');
-        try {
-          /**
-           * 日毎の株価情報を取得
-           * https://www.alphavantage.co/documentation/#daily
-           */
-          const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}`;
-          const response = await fetch(url);
-          
-          if (!response.ok) {
-            throw new Error(`Alpha Vantage API error: ${response.status} ${response.statusText}`);
-          }
-          
-          const rawData = await response.json();
-          const data = AlphaVantageTimeSeriesResponseSchema.parse(rawData);
-          
-          // APIエラーチェック
-          if (data["Error Message"]) {
-            throw new Error(`Alpha Vantage API Error: ${data["Error Message"]}`);
-          }
-          
-          if (data["Note"]) {
-            throw new Error(`Alpha Vantage API Limit: ${data["Note"]}`);
-          }
-          
-          if (!data["Time Series (Daily)"]) {
-            throw new Error(`No time series data found for symbol: ${symbol}`);
-          }
-          
-          const timeSeries = data["Time Series (Daily)"];
-          const dates = Object.keys(timeSeries).sort().reverse(); // 最新順にソート
-          
-          if (dates.length < 20) {
-            throw new Error(`Insufficient data for technical analysis. Need at least 20 days, got ${dates.length}`);
-          }
-          
-          // 過去20日間の終値を取得
-          const prices = dates.slice(0, 20).map(date => parseFloat(timeSeries[date]["4. close"]));
-          
-          const sma20 = this.calculateSMA(prices);
-          const rsi = this.calculateRSI(prices);
-          
-          const result = {
-            symbol,
-            period,
-            sma20: Math.round(sma20 * 100) / 100, // 小数点以下2桁に丸める
-            rsi: Math.round(rsi * 100) / 100,
-            recommendation: this.getRecommendation(rsi),
-            dataPoints: prices.length,
-            timestamp: new Date().toISOString()
-          };
-          
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify(result, null, 2)
-            }]
-          };
-        } catch (error) {
-          console.error('Error calculating technical indicators:', error);
-          
-          return {
-            content: [{
-              type: "text",
-              text: `Error calculating technical indicators for ${symbol}: ${error instanceof Error ? error.message : 'Unknown error'}`
-            }],
-            isError: true
-          };
-        }
+        /**
+         * 日毎の株価情報を取得
+         * https://www.alphavantage.co/documentation/#daily
+         */
+        const url = `${baseUrl}?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}`;
+        return this.executeApiRequest(url, `Error fetching time series data for ${symbol}`);
       }
     );
-  }
-
-  private calculateSMA(prices: number[]): number {
-    return prices.reduce((sum, price) => sum + price, 0) / prices.length;
-  }
-
-  private calculateRSI(prices: number[]): number {
-    if (prices.length < 2) return 50; // デフォルト値
-    
-    const gains: number[] = [];
-    const losses: number[] = [];
-    
-    // 価格変動を計算
-    for (let i = 1; i < prices.length; i++) {
-      const change = prices[i-1] - prices[i]; // 古い価格 - 新しい価格（逆順のため）
-      gains.push(change > 0 ? change : 0);
-      losses.push(change < 0 ? Math.abs(change) : 0);
-    }
-    
-    const avgGain = gains.reduce((sum, gain) => sum + gain, 0) / gains.length;
-    const avgLoss = losses.reduce((sum, loss) => sum + loss, 0) / losses.length;
-    
-    if (avgLoss === 0) return 100; // 損失がない場合
-    
-    const rs = avgGain / avgLoss;
-    return 100 - (100 / (1 + rs));
-  }
-
-  private getRecommendation(rsi: number): string {
-    if (rsi > 70) return 'SELL';
-    if (rsi < 30) return 'BUY';
-    return 'HOLD';
-  }
-
-  async start(): Promise<void> {
-    try {      
-      const transport = new StdioServerTransport();
-      await this.server.connect(transport);
-            
-      // プロセスを維持するためのシグナルハンドラ
-      process.on('SIGINT', async () => {
-        console.log('Received SIGINT signal');
-        await this.server.close();
-        process.exit(0);
-      });
-      
-      process.on('SIGTERM', async () => {
-        console.log('Received SIGTERM signal');
-        await this.server.close();
-        process.exit(0);
-      });
-
-      // エラーハンドリング
-      process.on('uncaughtException', (error) => {
-        console.error('Uncaught Exception:', error);
-        this.server.close().then(() => process.exit(1));
-      });
-
-      process.on('unhandledRejection', (reason, promise) => {
-        console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-        this.server.close().then(() => process.exit(1));
-      });
-
-    } catch (error) {
-      console.error('Failed to start server:', error);
-      process.exit(1);
-    }
   }
 }
 
@@ -244,5 +62,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   });
 }
 
-// デフォルトエクスポート
 export default StockMCPServer;

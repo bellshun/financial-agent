@@ -6,11 +6,13 @@ MCP理解のために、自作MCPサーバを作ってみました。
 
 ## 実装ファイル
 - MCPサーバー：
-    1. [暗号通貨データMCPサーバー](./src/mcp/crypto-server.ts)
+    1. [共通処理](./src/mcp/base-mcp-server.ts)
+        MCP接続処理、API実行処理などの共通クラス
+    2. [暗号通貨データMCPサーバー](./src/mcp/crypto-server.ts)
         Tool：get_crypto_price, get_market_data, search_symbol
-    2. [ニュースデータMCPサーバー](./src/mcp/news-server.ts)
+    3. [ニュースデータMCPサーバー](./src/mcp/news-server.ts)
         Tool: get_financial_news, search_news
-    3. [株価データMCPサーバー](./src/mcp/stock-server.ts)
+    4. [株価データMCPサーバー](./src/mcp/stock-server.ts)
         Tool: get_stock_quote, get_technical_indicates
 - MCPクライアント：[./src/mcp-client.ts](./src/mcp-client.ts)
 - メインのエントリーポイント:[./src/main.ts](./src/main.ts)

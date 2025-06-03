@@ -1,7 +1,6 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { FinancialNewsSchema, NewsAPIResponseSchema, SearchNewsSchema } from "./schemas";
+import { FinancialNewsSchema, SearchNewsSchema } from "./schemas";
 import 'dotenv/config';
+import { BaseMCPServer } from "./base-mcp-server";
 
 // APIキーの取得と検証
 const NEWS_API_KEY = process.env.NEWS_API_KEY;
@@ -10,166 +9,44 @@ if (!NEWS_API_KEY) {
   process.exit(1);
 }
 
-export class NewsMCPServer {
-  private server: McpServer;
-
+export class NewsMCPServer extends BaseMCPServer  {
   constructor() {
-    // MCPサーバーを作成
-    this.server = new McpServer({
-      name: "news-mcp-server",
-      version: "1.0.0"
-    });
-
-    this.setupTools();
+    super("news-mcp-server", "1.0.0");
   }
 
-  private setupTools() {
+  protected setupTools(): void {
+    const baseUrl = 'https://newsapi.org/v2';
+
     // 金融ニュース取得ツール
     this.server.tool(
       "get_financial_news",
+      "Search through millions of articles from over 150,000 large and small news sources and blogs with a stock ticker (security code)",
       FinancialNewsSchema.shape,
-      async ({ symbols, limit = 10 }) => {
-        try {
-          const query = symbols.join(' OR ');
-          /**
-           * 株式ティッカー(証券コード)を利用して、株価や証券に関するニュースを取得
-           * https://newsapi.org/docs/endpoints/everything
-           */
-          const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=${limit}&apiKey=${NEWS_API_KEY}`;
-          
-          const response = await fetch(url);
-          if (!response.ok) {
-            throw new Error(`NewsAPI request failed: ${response.status} ${response.statusText}`);
-          }
-
-          const rawData = await response.json();
-          const data = NewsAPIResponseSchema.parse(rawData);
-          
-          if (data.status === 'error') {
-            throw new Error(`NewsAPI error: ${data.message || 'Unknown error'}`);
-          }
-
-          if (!data.articles || data.articles.length === 0) {
-            return {
-              content: [{
-                type: "text",
-                text: JSON.stringify({
-                  message: "No articles found for the specified symbols",
-                  symbols,
-                  articles: []
-                }, null, 2)
-              }]
-            };
-          }
-          
-          const result = {
-            symbols,
-            totalResults: data.totalResults || 0,
-            articles: data.articles.map(article => ({
-              title: article.title,
-              description: article.description || "No description available",
-              url: article.url,
-              publishedAt: article.publishedAt,
-              source: article.source.name
-            })),
-            timestamp: new Date().toISOString()
-          };
-          
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify(result, null, 2)
-            }]
-          };
-        } catch (error) {
-          console.error('Error fetching news:', error);
-          
-          return {
-            content: [{
-              type: "text",
-              text: `Error fetching financial news: ${error instanceof Error ? error.message : 'Unknown error'}`
-            }],
-            isError: true
-          };
-        }
+      async ({ symbols, limit = 10 }, extra) => {
+        const query = symbols.join(' OR ');
+        /**
+         * 株式ティッカー(証券コード)を利用して、株価や証券に関するニュースを取得
+         * https://newsapi.org/docs/endpoints/everything
+         */
+        const url = `${baseUrl}/everything?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=${limit}&apiKey=${NEWS_API_KEY}`;
+        return this.executeApiRequest(url, "Error fetching financial news");
       }
     );
 
     // 一般ニュース検索ツール
     this.server.tool(
       "search_news",
+      "Search through millions of articles from over 150,000 large and small news sources and blogs with a keyword",
       SearchNewsSchema.shape,
-      async ({ query, limit = 10, sortBy = "publishedAt" }) => {
-        try {
-          /**
-           * 検索キーワードを利用して、ニュース全般を取得する
-           * https://newsapi.org/docs/endpoints/everything
-           */
-          const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=en&sortBy=${sortBy}&pageSize=${limit}&apiKey=${NEWS_API_KEY}`;
-          
-          const response = await fetch(url);
-          if (!response.ok) {
-            throw new Error(`NewsAPI request failed: ${response.status} ${response.statusText}`);
-          }
-
-          const rawData = await response.json();
-          const data = NewsAPIResponseSchema.parse(rawData);
-          
-          if (data.status === 'error') {
-            throw new Error(`NewsAPI error: ${data.message || 'Unknown error'}`);
-          }
-
-          if (!data.articles || data.articles.length === 0) {
-            return {
-              content: [{
-                type: "text",
-                text: JSON.stringify({
-                  message: "No articles found for the search query",
-                  query,
-                  articles: []
-                }, null, 2)
-              }]
-            };
-          }
-          
-          const result = {
-            query,
-            sortBy,
-            totalResults: data.totalResults || 0,
-            articles: data.articles.map(article => ({
-              title: article.title,
-              description: article.description || "No description available",
-              url: article.url,
-              publishedAt: article.publishedAt,
-              source: article.source.name
-            })),
-            timestamp: new Date().toISOString()
-          };
-          
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify(result, null, 2)
-            }]
-          };
-        } catch (error) {
-          console.error('Error searching news:', error);
-          
-          return {
-            content: [{
-              type: "text",
-              text: `Error searching news: ${error instanceof Error ? error.message : 'Unknown error'}`
-            }],
-            isError: true
-          };
-        }
+      async ({ query, limit = 10, sortBy = "publishedAt" }, extra) => {
+        /**
+         * 検索キーワードを利用して、ニュース全般を取得する
+         * https://newsapi.org/docs/endpoints/everything
+         */
+        const url = `${baseUrl}/everything?q=${encodeURIComponent(query)}&language=en&sortBy=${sortBy}&pageSize=${limit}&apiKey=${NEWS_API_KEY}`;
+        return this.executeApiRequest(url, "Error searching news");
       }
     );
-  }
-
-  async start(): Promise<void> {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
   }
 }
 
@@ -182,5 +59,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   });
 }
 
-// デフォルトエクスポート
 export default NewsMCPServer;

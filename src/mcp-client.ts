@@ -31,7 +31,10 @@ export class MCPClientManager {
       }
 
       console.log(`Connected to MCP servers: ${Array.from(this.mcpClients.keys()).join(', ')}`);
-      console.log(`Available tools: ${Array.from(this.availableTools.keys()).join(', ')}`);
+      console.log('Available tools:');
+      for (const [toolName, meta] of this.availableTools.entries()) {
+        console.log(`- ${toolName} (server: ${meta.server})`);
+      }
     } catch (error) {
       console.error('Failed to initialize MCP clients:', error);
       throw error;
