@@ -17,7 +17,7 @@ export class CryptoMCPServer extends BaseMCPServer {
       "get_crypto_price",
       "This endpoint allows you to query the prices of one or more coins by using their unique Coin API IDs",
       CryptoPriceSchema.shape,
-      async ({ symbol }, extra) => {
+      async ({ symbol }) => {
         /**
          * 仮想通貨の価格情報を取得
          * https://docs.coingecko.com/v3.0.1/reference/simple-price
@@ -32,7 +32,7 @@ export class CryptoMCPServer extends BaseMCPServer {
       "get_market_data", 
       "This endpoint allows you to query all the metadata (image, websites, socials, description, contract address, etc.) and market data (price, ATH, exchange tickers, etc.) of a coin from the CoinGecko coin page based on a particular coin ID",
       MarketDataSchema.shape,
-      async ({ symbol }, extra) => {
+      async ({ symbol }) => {
         /**
          * 仮想通貨のより詳細な情報を取得
          * https://docs.coingecko.com/v3.0.1/reference/coins-id
@@ -47,7 +47,11 @@ export class CryptoMCPServer extends BaseMCPServer {
       "search_symbol",
       "This endpoint allows you to query all the supported coins on CoinGecko with coins ID, name and symbol",
       SymbolSearchSchema.shape,
-      async ({ input }, extra) => {
+      async () => {
+        /**
+         * 仮想通貨のシンボル一覧を取得
+         * https://docs.coingecko.com/v3.0.1/reference/coins-list
+         */
         const url = `${baseUrl}/coins/list`;
         return this.executeApiRequest(url, "Error searching symbol");
       }
@@ -55,7 +59,7 @@ export class CryptoMCPServer extends BaseMCPServer {
   }
 }
 
-// サーバーの起動（このファイルが直接実行される場合）
+// サーバーの起動
 if (import.meta.url === `file://${process.argv[1]}`) {
   const server = new CryptoMCPServer();
   server.start().catch(console.error);

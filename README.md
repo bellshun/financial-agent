@@ -1,6 +1,6 @@
 ## 概要
-公開APIから暗号通貨や株価、ニュースデータを取得して、回答するエージェントです。
-MCP理解のために、自作MCPサーバを作ってみました。
+公開APIから暗号通貨や株価、ニュースデータを取得するAPIをMCPサーバーにしました。
+クライアント(ターミナル)からLLMを呼び出して利用します。
 
 ![MCP構成図イメージ](./docs/image.png)
 
@@ -35,14 +35,21 @@ MCP理解のために、自作MCPサーバを作ってみました。
 npm install
 ```
 
-`.env.example` をコピーして `.env` を作成
+#### Ollama
+```bash
+ollama run qwen3:8b
+```
 
-### 2. MCPサーバー起動
+### 2. 環境変数設定
+ローカルにMCPサーバーを立てる必要があるので、News APIとAlpha Vantage APIのAPI Keyを公式ページより取得します。
+`.env.example` をコピーして `.env` を作成してください。
+
+### 3. MCPサーバー起動
 ```bash
 npm run start-mcp-servers
 ```
 
-### 3. 実行
+### 4. 実行
 ```bash
 npm run dev
 ```

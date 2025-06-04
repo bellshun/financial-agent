@@ -22,13 +22,13 @@ export class NewsMCPServer extends BaseMCPServer  {
       "get_financial_news",
       "Search through millions of articles from over 150,000 large and small news sources and blogs with a stock ticker (security code)",
       FinancialNewsSchema.shape,
-      async ({ symbols, limit = 10 }, extra) => {
+      async ({ symbols, pageSize = 10 }) => {
         const query = symbols.join(' OR ');
         /**
          * 株式ティッカー(証券コード)を利用して、株価や証券に関するニュースを取得
          * https://newsapi.org/docs/endpoints/everything
          */
-        const url = `${baseUrl}/everything?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=${limit}&apiKey=${NEWS_API_KEY}`;
+        const url = `${baseUrl}/everything?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=${pageSize}&apiKey=${NEWS_API_KEY}`;
         return this.executeApiRequest(url, "Error fetching financial news");
       }
     );
@@ -38,19 +38,19 @@ export class NewsMCPServer extends BaseMCPServer  {
       "search_news",
       "Search through millions of articles from over 150,000 large and small news sources and blogs with a keyword",
       SearchNewsSchema.shape,
-      async ({ query, limit = 10, sortBy = "publishedAt" }, extra) => {
+      async ({ query, pageSize = 10, sortBy = "publishedAt" }) => {
         /**
          * 検索キーワードを利用して、ニュース全般を取得する
          * https://newsapi.org/docs/endpoints/everything
          */
-        const url = `${baseUrl}/everything?q=${encodeURIComponent(query)}&language=en&sortBy=${sortBy}&pageSize=${limit}&apiKey=${NEWS_API_KEY}`;
+        const url = `${baseUrl}/everything?q=${encodeURIComponent(query)}&language=en&sortBy=${sortBy}&pageSize=${pageSize}&apiKey=${NEWS_API_KEY}`;
         return this.executeApiRequest(url, "Error searching news");
       }
     );
   }
 }
 
-// サーバーの起動（このファイルが直接実行される場合）
+// サーバーの起動
 if (import.meta.url === `file://${process.argv[1]}`) {
   const server = new NewsMCPServer();
   server.start().catch(error => {

@@ -25,7 +25,7 @@ export class StockMCPServer extends BaseMCPServer {
       "get_stock_quote",
       "This endpoint returns the latest price and volume information for a ticker of your choice. You can specify one ticker per API request.",
       StockQuoteSchema.shape,
-      async ({ symbol }, extra) => {
+      async ({ symbol }) => {
         console.log('Registered tool: get_stock_quote');
         /**
          * 最新の株価情報、前日比情報を取得
@@ -40,7 +40,7 @@ export class StockMCPServer extends BaseMCPServer {
       "get_technical_indicators",
       "This API returns raw (as-traded) daily time series (date, daily open, daily high, daily low, daily close, daily volume) of the global equity specified, covering 20+ years of historical data. The OHLCV data is sometimes called candles in finance literature",
       TechnicalIndicatorsSchema.shape,
-      async ({ symbol, period = "daily" }, extra) => {
+      async ({ symbol }) => {
         console.log('Registered tool: get_technical_indicators');
         /**
          * 日毎の株価情報を取得
@@ -53,7 +53,7 @@ export class StockMCPServer extends BaseMCPServer {
   }
 }
 
-// メインの実行部分
+// サーバーの起動
 if (import.meta.url === `file://${process.argv[1]}`) {
   const server = new StockMCPServer();
   server.start().catch(error => {

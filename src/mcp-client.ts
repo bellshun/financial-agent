@@ -1,11 +1,25 @@
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { CallToolResult, ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { CallToolResult, ListToolsResult } from "@modelcontextprotocol/sdk/types.js";
+
+/**
+ * Tool情報をmain.ts 側でも扱いやすいように整形するための型
+ */
+export interface ToolMetadata {
+  /** ツール名 */
+  name: string;
+  /** ツールの説明 */
+  description?: string | undefined;
+  /** JSON Schema */
+  inputSchema: any;
+  /** ツールが所属するサーバー名 ("crypto" | "news" | "stock") */
+  server: string;
+}
 
 export class MCPClientManager {
   private mcpClients: Map<string, Client> = new Map();
   private mcpTransports: Map<string, StdioClientTransport> = new Map();
-  private availableTools: Map<string, { tool: any; server: string }> = new Map();
+  private toolMetadata: ToolMetadata[] = [];
 
   constructor(
     private config: {
@@ -16,56 +30,91 @@ export class MCPClientManager {
       };
     } = {}
   ) {
+    // デフォルトで各サーバーを tsx で起動する想定。必要に応じて引数でオーバーライド可能。
     this.config.mcpServers = {
-      crypto: { command: 'tsx', args: ['./src/mcp/crypto-server.ts'] },
-      news: { command: 'tsx', args: ['./src/mcp/news-server.ts'] },
-      stock: { command: 'tsx', args: ['./src/mcp/stock-server.ts'] },
-      ...config.mcpServers
+      crypto: { command: "tsx", args: ["./src/mcp/crypto-server.ts"] },
+      news: { command: "tsx", args: ["./src/mcp/news-server.ts"] },
+      stock: { command: "tsx", args: ["./src/mcp/stock-server.ts"] },
+      ...config.mcpServers,
     };
   }
 
+  /**
+   * 各 MCP サーバーに接続し、listTools() で得られたツール情報を availableTools に格納する
+   */
   async initialize(): Promise<void> {
     try {
       for (const [serverName, serverConfig] of Object.entries(this.config.mcpServers!)) {
         await this.connectToMCPServer(serverName, serverConfig);
       }
-
-      console.log(`Connected to MCP servers: ${Array.from(this.mcpClients.keys()).join(', ')}`);
-      console.log('Available tools:');
-      for (const [toolName, meta] of this.availableTools.entries()) {
-        console.log(`- ${toolName} (server: ${meta.server})`);
-      }
+      console.log(
+        `Connected to MCP servers: ${Array.from(this.mcpClients.keys()).join(", ")}`
+      );
     } catch (error) {
-      console.error('Failed to initialize MCP clients:', error);
+      console.error("Failed to initialize MCP clients:", error);
       throw error;
     }
   }
 
+  /**
+   * 特定のサーバーに対して Stdio 経由で Client を構築し、
+   * client.listTools() を呼んで availableTools に登録する
+   */
   private async connectToMCPServer(
-    serverName: string, 
+    serverName: string,
     config: { command: string; args: string[] }
   ): Promise<void> {
     const transport = new StdioClientTransport({
       command: config.command,
-      args: config.args
+      args: config.args,
     });
 
     const client = new Client(
-      { name: `${serverName}-client`, version: '1.0.0' },
+      { name: serverName/*`${serverName}-client`*/, version: "1.0.0" },
+      // capabilities は空で問題ありません。ツール検出は listTools() で行うためです。
       { capabilities: { tools: {} } }
     );
 
     await client.connect(transport);
-    
-    const toolsResult = await client.listTools() as ListToolsResult;
-    toolsResult.tools?.forEach(tool => {
-      this.availableTools.set(tool.name, { tool, server: serverName });
+    // MCPサーバーのTool取得
+    const toolsResult = (await client.listTools()) as ListToolsResult;
+    toolsResult.tools?.forEach((tool) => {
+      if (!tool.name || !tool.inputSchema) return;
+
+      // Tool オブジェクト (name, description, inputSchema) を availableTools へ格納
+      this.toolMetadata.push({ 
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+        server: serverName,
+      });
     });
 
     this.mcpClients.set(serverName, client);
     this.mcpTransports.set(serverName, transport);
   }
 
+  getToolMetadata(): ToolMetadata[] {
+    return this.toolMetadata;
+  }
+
+  /**
+   * availableTools にキャッシュされているすべてのツールを
+   * ToolMetadata 型の配列として返す
+   */
+  // async listTools(): Promise<ToolMetadata[]> {
+  //   return Array.from(this.availableTools.entries()).map(([name, { tool, server }]) => ({
+  //     name: tool.name,
+  //     description: tool.description,
+  //     inputSchema: tool.inputSchema,
+  //     server,
+  //   }));
+  // }
+
+  /**
+   * 指定したサーバー(serverName) のツール(toolName) を
+   * パラメータ(parameters) 付きで実行し、その結果を返す
+   */
   async executeTool(
     serverName: string,
     toolName: string,
@@ -73,54 +122,36 @@ export class MCPClientManager {
   ): Promise<CallToolResult> {
     const client = this.mcpClients.get(serverName);
     if (!client) {
-      throw new Error(`MCP server ${serverName} not available`);
+      throw new Error(`MCP server "${serverName}" not available`);
     }
-
-    return await client.callTool({
+    console.log(`ツール "${toolName}" を実行します (server: ${serverName})`);
+    return (await client.callTool({
       name: toolName,
-      arguments: parameters
-    }) as CallToolResult;
+      arguments: parameters,
+    })) as CallToolResult;
   }
 
+  /**
+   * すべてのサーバーとの接続をクローズし、内部キャッシュをクリア
+   */
   async cleanup(): Promise<void> {
     try {
-      for (const [serverName, client] of this.mcpClients.entries()) {
-        const transport = this.mcpTransports.get(serverName);
-        if (transport) {
-          await transport.close();
-        }
+      for (const [, transport] of this.mcpTransports.entries()) {
+        await transport.close();
       }
       this.mcpClients.clear();
       this.mcpTransports.clear();
-      this.availableTools.clear();
-      console.log('Cleanup completed');
+      this.toolMetadata = []
+      console.log("MCPClientManager: Cleanup completed");
     } catch (error) {
-      console.error('Cleanup failed:', error);
+      console.error("MCPClientManager: Cleanup failed:", error);
     }
   }
 
-  getAvailableTools(): string[] {
-    return Array.from(this.availableTools.keys());
-  }
-
-  async healthCheck(): Promise<{
-    mcpServers: Record<string, boolean>;
-    tools: number;
-  }> {
-    const mcpHealth: Record<string, boolean> = {};
-    for (const serverName of this.mcpClients.keys()) {
-      try {
-        const client = this.mcpClients.get(serverName);
-        await client?.listTools();
-        mcpHealth[serverName] = true;
-      } catch {
-        mcpHealth[serverName] = false;
-      }
-    }
-
-    return {
-      mcpServers: mcpHealth,
-      tools: this.availableTools.size
-    };
-  }
-} 
+  /**
+   * 現在登録されているツール名の一覧を返す
+   */
+  // getAvailableTools(): string[] {
+  //   return Array.from(this.availableTools.keys());
+  // }
+}

@@ -20,7 +20,6 @@ export abstract class BaseMCPServer {
       name,
       version
     });
-
     this.setupTools();
   }
 
