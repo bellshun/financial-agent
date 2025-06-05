@@ -10,7 +10,7 @@ export type McpResponse = {
 };
 
 /**
- * MCPサーバーの基底クラス
+ * Base class for MCP server
  */
 export abstract class BaseMCPServer {
   protected server: McpServer;
@@ -23,13 +23,10 @@ export abstract class BaseMCPServer {
     this.setupTools();
   }
 
-  /**
-   * ツールの設定を行う抽象メソッド
-   */
   protected abstract setupTools(): void;
 
   /**
-   * APIリクエストを実行し、結果をMCPレスポンス形式に変換する
+   * Execute API request and convert the result to MCP response format
    */
   protected async executeApiRequest(
     url: string,
@@ -60,15 +57,13 @@ export abstract class BaseMCPServer {
     }
   }
 
-  /**
-   * サーバーを起動する
-   */
+  // Start the server
   async start(): Promise<void> {
     try {      
       const transport = new StdioServerTransport();
       await this.server.connect(transport);
             
-      // プロセスを維持するためのシグナルハンドラ
+      // Signal handler to keep the process running
       process.on('SIGINT', async () => {
         console.log('Received SIGINT signal');
         await this.server.close();
@@ -81,7 +76,6 @@ export abstract class BaseMCPServer {
         process.exit(0);
       });
 
-      // エラーハンドリング
       process.on('uncaughtException', (error) => {
         console.error('Uncaught Exception:', error);
         this.server.close().then(() => process.exit(1));

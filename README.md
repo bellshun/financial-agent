@@ -1,55 +1,76 @@
-## 概要
-公開APIから暗号通貨や株価、ニュースデータを取得するAPIをMCPサーバーにしました。
-クライアント(ターミナル)からLLMを呼び出して利用します。
+# Example of prototype using MCP with LangChainJS (cryptcurrency, stock price, news acquisition AI assistant)
 
-![MCP構成図イメージ](./docs/image.png)
+[日本語](./docs/ja/README.md)
 
-## 実装ファイル
-- MCPサーバー：
-    1. [共通処理](./src/mcp/base-mcp-server.ts)
-        MCP接続処理、API実行処理などの共通クラス
-    2. [暗号通貨データMCPサーバー](./src/mcp/crypto-server.ts)
-        Tool：get_crypto_price, get_market_data, search_symbol
-    3. [ニュースデータMCPサーバー](./src/mcp/news-server.ts)
-        Tool: get_financial_news, search_news
-    4. [株価データMCPサーバー](./src/mcp/stock-server.ts)
-        Tool: get_stock_quote, get_technical_indicates
-- MCPクライアント：[./src/mcp-client.ts](./src/mcp-client.ts)
-- メインのエントリーポイント:[./src/main.ts](./src/main.ts)
+## Overview
+This project provides access to cryptocurrency, stock market, and financial news data via multiple public APIs, wrapped as MCP (Model Context Protocol) servers. You can interact with these servers through natural language using an local LLM from a terminal-based client.
 
-## 利用技術
-- [modelcontextprotocol/typescript-sdk](https://github.com/modelcontextprotocol/typescript-sdk)によるMCPクライアント/サーバー実装
-- [LangSmith](https://www.langchain.com/langsmith)によるトレーシング
-- [ローカルLLM (Ollama)](https://github.com/ollama/ollama)によるモデル呼び出し
+- The client communicates with an LLM via natural language commands.
+- The servers fetch and format data from public APIs and return structured results.
+- MCP server connection from LangChain and memory management by LangChain
 
-## 利用API
-無料で利用できるAPIを利用しています。
+![MCP Architecture Diagram](./docs/en/image.png)
+
+---
+
+## Technologies Used
+
+- 🧠 [modelcontextprotocol/typescript-sdk](https://github.com/modelcontextprotocol/typescript-sdk): For implementing MCP servers
+- 🔗 [LangChain MCP Adapter](https://github.com/langchain-ai/langchainjs/tree/main/libs/langchain-mcp-adapters): Integrates MCP tools with LangChainJS
+- 📊 [LangSmith](https://www.langchain.com/langsmith): For tracing and debugging
+- 💻 [Ollama (Qwen3:8b)](https://github.com/ollama/ollama): Local LLM runtime environment
+
+---
+
+## Directory Structure
+```
+src/
+├── main.ts # Entry point
+└── mcp/
+├──── base-mcp-server.ts # Common MCP server logic
+├──── crypto-server.ts # Cryptocurrency MCP (CoinGecko)
+├──── news-server.ts # News MCP (NewsAPI)
+└──── stock-server.ts # Stock MCP (Alpha Vantage)
+```
+
+---
+
+## Public APIs Used
+
 - [CoinGecko API](https://docs.coingecko.com/v3.0.1/reference/introduction)
 - [News API](https://newsapi.org/docs)
 - [Alpha Vantage API](https://www.alphavantage.co/documentation/)
 
-## 実行方法
+---
 
-### 1. セットアップ
+## How to Run
+
+### 1. Setup
 ```bash
 npm install
 ```
 
-#### Ollama
+### 2. Start Ollama (Local LLM)
+Make sure Ollama is installed and start the Qwen3:8b model:
 ```bash
 ollama run qwen3:8b
 ```
 
-### 2. 環境変数設定
-ローカルにMCPサーバーを立てる必要があるので、News APIとAlpha Vantage APIのAPI Keyを公式ページより取得します。
-`.env.example` をコピーして `.env` を作成してください。
+### 3. Set Environment Variables
+Copy .env.example to .env and provide your API keys:
+```bash
+cp .env.example .env
+```
+> 🔑 You need to get your API keys from News API and Alpha Vantage.
 
-### 3. MCPサーバー起動
+### 4. Start MCP Servers
+Launch all MCP servers locally using the launcher script:
 ```bash
 npm run start-mcp-servers
 ```
 
-### 4. 実行
+### 5. Start the Client
+Start the CLI client and interact with your LLM + MCP stack:
 ```bash
 npm run dev
 ```

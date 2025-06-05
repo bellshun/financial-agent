@@ -29,61 +29,44 @@ const servers: MCPServer[] = [
   }
 ];
 
+/**
+ * launch multiple MCP servers locally and simultaneously
+ */
 async function startMCPServers() {
-  console.log(chalk.blue('🚀 Starting MCP Servers...'));
+  console.log(chalk.blue('Starting MCP Servers...'));
   console.log(chalk.gray('Press Ctrl+C to stop all servers\n'));
   
-  // 各サーバーを起動
   for (const server of servers) {
     try {
       console.log(chalk.yellow(`Starting ${server.name}...`));
       
       server.process = spawn('tsx', [server.script], {
-        stdio: 'inherit',  // 標準入出力を継承
+        stdio: 'inherit',  // Inherits standard I/O
         env: { ...process.env }
       });
-      
-      server.process.on('exit', (code) => {
-        console.log(chalk.gray(`[${server.name}] Exited with code ${code}`));
-      });
-      
-      console.log(chalk.green(`✅ ${server.name} started (PID: ${server.process.pid})`));
+            
+      console.log(chalk.green(`${server.name} started (PID: ${server.process.pid})`));
       
     } catch (error) {
-      console.error(chalk.red(`❌ Failed to start ${server.name}:`), error);
+      console.error(chalk.red(`Failed to start ${server.name}:`), error);
     }
   }
   
-  console.log(chalk.blue('\n🎯 All MCP servers started!'));
+  console.log(chalk.blue('\nAll MCP servers started!'));
   console.log(chalk.gray('Servers are running in background. Use Ctrl+C to stop all.\n'));
-  
-  // Graceful shutdown
-  process.on('SIGINT', () => {
-    console.log(chalk.yellow('\n🛑 Shutting down MCP servers...'));
     
-    servers.forEach(server => {
-      if (server.process) {
-        server.process.kill('SIGTERM');
-        console.log(chalk.gray(`Stopped ${server.name}`));
-      }
-    });
-    
-    console.log(chalk.blue('👋 All servers stopped. Goodbye!'));
-    process.exit(0);
-  });
-  
-  // Keep the process alive
+  // Keep the process alive (health check)
   setInterval(() => {
     // Check if any server has died
     servers.forEach(server => {
       if (server.process && server.process.killed) {
-        console.log(chalk.red(`⚠️  ${server.name} has stopped unexpectedly`));
+        console.log(chalk.red(` ${server.name} has stopped unexpectedly`));
       }
     });
   }, 5000);
 }
 
 startMCPServers().catch(error => {
-  console.error(chalk.red('❌ Failed to start MCP servers:'), error);
+  console.error(chalk.red('Failed to start MCP servers:'), error);
   process.exit(1);
 });

@@ -3,14 +3,13 @@ import { BaseMCPServer } from "./base-mcp-server";
 import 'dotenv/config';
 
 const ALPHA_VANTAGE_API_KEY = process.env.ALPHA_VANTAGE_API_KEY;
-
 if (!ALPHA_VANTAGE_API_KEY) {
   console.error('Error: ALPHA_VANTAGE_API_KEY is not set in environment variables');
   process.exit(1);
 }
 
 /**
- * 株価データを提供するMCPサーバー
+ * MCP server that provides stock price data
  */
 export class StockMCPServer extends BaseMCPServer {
   constructor() {
@@ -20,7 +19,6 @@ export class StockMCPServer extends BaseMCPServer {
   protected setupTools(): void {
     const baseUrl = 'https://www.alphavantage.co/query';
 
-    // 株価取得ツール
     this.server.tool(
       "get_stock_quote",
       "This endpoint returns the latest price and volume information for a ticker of your choice. You can specify one ticker per API request.",
@@ -28,7 +26,7 @@ export class StockMCPServer extends BaseMCPServer {
       async ({ symbol }) => {
         console.log('Registered tool: get_stock_quote');
         /**
-         * 最新の株価情報、前日比情報を取得
+         * Get latest stock price information and previous day comparison
          * https://www.alphavantage.co/documentation/#latestprice
          */
         const url = `${baseUrl}?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}`;
@@ -43,7 +41,7 @@ export class StockMCPServer extends BaseMCPServer {
       async ({ symbol }) => {
         console.log('Registered tool: get_technical_indicators');
         /**
-         * 日毎の株価情報を取得
+         * Get daily stock price information
          * https://www.alphavantage.co/documentation/#daily
          */
         const url = `${baseUrl}?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}`;
@@ -53,7 +51,6 @@ export class StockMCPServer extends BaseMCPServer {
   }
 }
 
-// サーバーの起動
 if (import.meta.url === `file://${process.argv[1]}`) {
   const server = new StockMCPServer();
   server.start().catch(error => {

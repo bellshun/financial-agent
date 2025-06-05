@@ -1,249 +1,122 @@
-import { MCPClientManager, ToolMetadata } from "./mcp-client";
-import { Ollama } from "ollama";
-import Ajv, { ValidateFunction } from "ajv";
+import { ChatOllama } from "@langchain/ollama";
+import { CompiledStateGraph } from "@langchain/langgraph";
+import { HumanMessage, AIMessage } from "@langchain/core/messages";
+import { createReactAgent } from "@langchain/langgraph/prebuilt";  
+import { MultiServerMCPClient } from "@langchain/mcp-adapters";
+
 import * as readline from "readline";
 import "dotenv/config";
 
-interface Message {
-  role: "system" | "user" | "assistant";
-  content: string;
-}
-
-// const ajv = new Ajv({ strict: false });
-
-/**
- * JSON Schema を Ajv のバリデータ関数に変換するユーティリティ
- */
-// function compileSchemaValidator(schema: any): ValidateFunction {
-//   return ajv.compile(schema);
-// }
-
-/**
- * 取得した ToolMetadata[] を Markdown 形式で整形し、
- * システムプロンプトに埋め込める文字列を返す
- */
-function buildToolsInfoText(tools: ToolMetadata[]): string {
-  return tools
-    .map((t) => {
-      const schemaText =
-        typeof t.inputSchema === "object"
-          ? JSON.stringify(t.inputSchema, null, 2)
-          : "{}";
-      return [
-        `- name: ${t.name}`,
-        `  description: ${t.description ?? "(説明なし)"}`,
-        `  inputSchema:`,
-        "  ```json",
-        `  ${schemaText.replace(/\n/g, "\n  ")}`,
-        "  ```",
-      ].join("\n");
-    })
-    .join("\n\n");
-}
+const MAX_HISTORY_LENGTH = 20;
 
 const main = async () => {
-  // 1. Ollama クライアントを初期化
-  const ollama = new Ollama({ host: "http://127.0.0.1:11434" });
+  let client: MultiServerMCPClient | null = null;
+  
+  try {
+    // Connect with MCP server & get tools
+    client = new MultiServerMCPClient({
+      mcpServers: {
+        crypto: { command: "tsx", args: ["./src/mcp/crypto-server.ts"] },
+        news: { command: "tsx", args: ["./src/mcp/news-server.ts"] },
+        stock: { command: "tsx", args: ["./src/mcp/stock-server.ts"] },
+      }
+    });
+    const mcpTools = await client.getTools();
 
-  // 2. MCPClientManager を初期化して各サーバーに接続し、ツール一覧を取得
-  const manager = new MCPClientManager();
-  await manager.initialize();
-  const toolMetadatas = manager.getToolMetadata();
+    const llm = new ChatOllama({
+      model: "qwen3:8b", 
+      baseUrl: "http://127.0.0.1:11434",
+      temperature: 0.3,
+    });
 
-  // 3. システムプロンプトにツール一覧情報を埋め込む
-  const toolsInfoText = buildToolsInfoText(toolMetadatas);
-  const systemMessage: Message = {
-    role: "system",
-    content: `
-あなたは株価、暗号通貨、ニュース情報を提供するAIアシスタントです。
-以下のツールが利用可能です。JSON スキーマと説明を参考に、必要に応じてツールを実行してください。
+    // Create Agent
+    const agent = createReactAgent({
+      llm,
+      tools: mcpTools,
+      prompt: `You are an AI assistant providing stock quotes, cryptocurrency and news information.
+Use the available tools to provide accurate and useful information to users' questions.
 
-${toolsInfoText}
+The information obtained from the tool should be properly organized and presented. Multiple tools may be used in combination.`,
+    });
 
-### ツールを使いたい場合
-ユーザーの要求に対してツールを呼び出す必要があると判断したら、必ず以下の JSON フォーマットで単独メッセージを返してください:
-\`\`\`json
-{
-  "action": "use_tool",
-  "tool": "<ツール名>",
-  "arguments": { ... }
-}
-\`\`\`
-JSON 以外の応答を返した時点で「最終回答」とみなします。
+    await startInteractiveSession(agent);
+  } catch (error) {
+    console.error("initialization error:", error);
+    process.exit(1);
+  } finally {
+    // MCP Client Cleanup
+    if (client) {
+      await client.close?.();
+    }
+  }
+};
 
-最終的なユーザーへの回答は、常に自然な日本語で行ってください。ツール実行後はツールの結果を優先して回答を構成してください。`.trim(),
-  };
-
-  // 4. コマンドライン入力のセットアップ
+async function startInteractiveSession(
+  agent: CompiledStateGraph<any, any, any, any>,
+) {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
   });
-  function promptUser(): Promise<string> {
-    return new Promise((resolve) => {
-      rl.question("❯❯ ", (ans) => resolve(ans.trim()));
-    });
-  }
 
-  console.log("=== MCP クライアント (Ollama + qwen3:8b) 起動 ===");
-  console.log("例：「BTCの価格を教えて」「AAPLの株価と関連ニュース5件ください」など。");
-  console.log("終了するには exit または quit と入力。\n");
+  console.log("E.g., “Tell me the price of Bitcoin” or “Give me AAPL's stock price and 5 related news items.”");
+  console.log("Type “exit” to quit.\n");
 
-  while (true) {
-    const userInput = await promptUser();
-    if (userInput === "exit" || userInput === "quit") {
-      console.log("終了します。");
-      await manager.cleanup?.();
-      rl.close();
-      process.exit(0);
-    }
-    if (!userInput) {
-      continue;
-    }
+  const messages: (HumanMessage | AIMessage)[] = [];
 
-    try {
-      await processUserRequest(ollama, manager, systemMessage, userInput, toolMetadatas);
-    } catch (error) {
-      console.error("エラーが発生しました:", error);
-      console.log("\n-----------------------------\n");
-    }
-  }
-};
-
-/**
- * 実際にユーザーリクエストを処理し、LLM → ツール → LLM の流れを回す関数
- */
-const processUserRequest = async (
-  ollama: Ollama,
-  manager: MCPClientManager,
-  systemMessage: Message,
-  userInput: string,
-  toolMetadatas: ToolMetadata[]
-) => {
-  // 会話履歴 (system + user)
-  const messages: Message[] = [systemMessage, { role: "user", content: userInput }];
-
-  let maxIterations = 5; // 無限ループ防止
-  let iteration = 0;
-
-  console.log("回答を生成します...")
-
-  while (iteration < maxIterations) {
-    iteration++;
-
-    // ===== 1) LLM に質問を投げる =====
-    const response = await ollama.chat({
-      model: "qwen3:8b",
-      messages: messages,
-      stream: true,
-    });
-
-    let assistantMsg = "";
-    console.log(`\n[AI応答 ${iteration}] `);
-
-    // ストリーミングレスポンスを処理して一文にまとめる
-    for await (const chunk of response) {
-      if (chunk.message?.content) {
-        process.stdout.write(chunk.message.content);
-        assistantMsg += chunk.message.content;
-      }
-    }
-    console.log(""); // 改行
-
-    assistantMsg = assistantMsg.trim();
-
-    // ===== 2) JSON ブロック (ツール呼び出し) を抽出 =====
-    let toolCall: { action: string; tool: string; arguments: Record<string, any> } | null = null;
-    try {
-      // ```json { ... } ``` または生の { ... } をキャッチ
-      const jsonMatch =
-        assistantMsg.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/) ||
-        assistantMsg.match(/(\{[\s\S]*\})/);
-      if (jsonMatch) {
-        toolCall = JSON.parse(jsonMatch[1]);
-      }
-    } catch {
-      toolCall = null;
-    }
-
-    // ===== 3) ツール呼び出しが指示された場合 =====
-    if (toolCall?.action === "use_tool" && toolCall.tool && toolCall.arguments) {
-      const toolName = toolCall.tool;
-      const rawArgs = toolCall.arguments;
-
-      console.log(`\n🔧 ツール実行: ${toolName}`);
-      console.log(`   arguments: ${JSON.stringify(rawArgs, null, 2)}`);
-
-      // 3-1) ツールメタ情報を探す
-      const meta = toolMetadatas.find((t) => t.name === toolName);
-      if (!meta) {
-        console.log('ツールが見つかりません')
-        // 見つからなければエラーメッセージを会話履歴に追加して再試行
-        const errorMsg =
-          `エラー: ツール "${toolName}" は存在しません。\n` +
-          `利用可能なツール：\n${toolMetadatas.map((t) => `- ${t.name}: ${t.description}`).join("\n")}`;
-        messages.push({ role: "assistant", content: errorMsg });
-        continue;
-      }
-
-      // 3-2) JSON スキーマでバリデーション
-      // const validate = compileSchemaValidator(meta.inputSchema);
-      // const valid = validate(rawArgs);
-      // if (!valid) {
-      //   const ajvErrors = validate.errors
-      //     ?.map((e) => `・${e.instancePath} ${e.message}`)
-      //     .join("\n");
-      //   const errorContext =
-      //     `ツール "${toolName}" の引数検証に失敗しました:\n${ajvErrors}\n再度正しい形式でリクエストしてください。`;
-      //   console.error(errorContext);
-      //   messages.push({ role: "assistant", content: errorContext });
-      //   continue;
-      // }
-
-      // 3-3) ツール実行
-      let callResult;
+  try {
+    while (true) {
       try {
-        callResult = await manager.executeTool(meta.server, toolName, rawArgs);
-      } catch (err: any) {
-        const errorContext =
-          `❌ ツール "${toolName}" の実行中にエラーが発生しました: ${err.message}\n別の方法で回答してください。`;
-        console.error(errorContext);
-        messages.push({ role: "assistant", content: errorContext });
-        continue;
+        // Accepts user input
+        const userInput: string = await new Promise((resolve) => {
+          rl.question("❯❯ ", (ans) => resolve(ans.trim()));
+        });
+
+        if (userInput === "exit") break;
+        if (!userInput) continue;
+
+        // Add user input to history
+        messages.push(new HumanMessage(userInput));  
+
+        console.log("Generate answers ...\n");
+
+        // Agent Execution
+        const result = await agent.invoke({ messages });
+
+        // result
+        const lastMessage = result.messages[result.messages.length - 1];  
+        console.log("\n【final answer】");
+        console.log(lastMessage.content);
+        console.log("\n-----------------------------\n");
+
+        // Add answer to history
+        messages.push(new AIMessage(lastMessage.content));
+
+        // If the history becomes too long, delete the old one.
+        if (messages.length > MAX_HISTORY_LENGTH) {
+          messages.splice(0, 2);
+        }
+      } catch (error: any) {
+        console.error("An error occurred: ", error.message);
+        console.log("\n-----------------------------\n");
       }
-
-      // 3-4) ツール結果を会話履歴に追加して次のラウンドへ
-      const toolResultStr =
-        typeof callResult.content === "string"
-          ? callResult.content
-          : JSON.stringify(callResult.content, null, 2);
-      console.log(`✅ ツール結果取得: ${toolResultStr.substring(0, 200)}...`);
-      const contextMessage: Message = {
-        role: "user",
-        content:
-          `以下はツール "${toolName}" の実行結果です。この情報を使って最終的な回答を構築してください。\n\n` +
-          `${toolResultStr}`,
-      };
-      messages.push(contextMessage);
-
-      // 再度 LLM を呼び出すためにループ続行
-      continue;
     }
-
-    // ===== 4) ツール呼び出しではないなら「最終回答」 =====
-    console.log("\n【最終回答】");
-    console.log(assistantMsg);
-    console.log("\n-----------------------------\n");
-    break;
+  } finally {
+    rl.close();
   }
+}
 
-  if (iteration >= maxIterations) {
-    console.log("⚠️ 最大反復数に達しました。処理を終了します。");
-    console.log("\n-----------------------------\n");
-  }
-};
+process.on('unhandledRejection', (reason) => {
+  console.error('Unprocessed Promise Rejection:', reason);
+  process.exit(1);
+});
+
+process.on('SIGINT', () => {
+  console.log('\nterminating ...');
+  process.exit(0);
+});
 
 main().catch((err) => {
-  console.error("致命的エラー:", err);
+  console.error("unexpected error:", err);
   process.exit(1);
 });

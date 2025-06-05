@@ -2,7 +2,7 @@ import { FinancialNewsSchema, SearchNewsSchema } from "./schemas";
 import 'dotenv/config';
 import { BaseMCPServer } from "./base-mcp-server";
 
-// APIキーの取得と検証
+// Get and validate API key
 const NEWS_API_KEY = process.env.NEWS_API_KEY;
 if (!NEWS_API_KEY) {
   console.error('Error: NEWS_API_KEY is not set in environment variables');
@@ -17,7 +17,6 @@ export class NewsMCPServer extends BaseMCPServer  {
   protected setupTools(): void {
     const baseUrl = 'https://newsapi.org/v2';
 
-    // 金融ニュース取得ツール
     this.server.tool(
       "get_financial_news",
       "Search through millions of articles from over 150,000 large and small news sources and blogs with a stock ticker (security code)",
@@ -25,7 +24,7 @@ export class NewsMCPServer extends BaseMCPServer  {
       async ({ symbols, pageSize = 10 }) => {
         const query = symbols.join(' OR ');
         /**
-         * 株式ティッカー(証券コード)を利用して、株価や証券に関するニュースを取得
+         * Get news about stocks and securities using stock ticker (security code)
          * https://newsapi.org/docs/endpoints/everything
          */
         const url = `${baseUrl}/everything?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=${pageSize}&apiKey=${NEWS_API_KEY}`;
@@ -33,14 +32,13 @@ export class NewsMCPServer extends BaseMCPServer  {
       }
     );
 
-    // 一般ニュース検索ツール
     this.server.tool(
       "search_news",
       "Search through millions of articles from over 150,000 large and small news sources and blogs with a keyword",
       SearchNewsSchema.shape,
       async ({ query, pageSize = 10, sortBy = "publishedAt" }) => {
         /**
-         * 検索キーワードを利用して、ニュース全般を取得する
+         * Get general news using search keywords
          * https://newsapi.org/docs/endpoints/everything
          */
         const url = `${baseUrl}/everything?q=${encodeURIComponent(query)}&language=en&sortBy=${sortBy}&pageSize=${pageSize}&apiKey=${NEWS_API_KEY}`;
@@ -50,7 +48,6 @@ export class NewsMCPServer extends BaseMCPServer  {
   }
 }
 
-// サーバーの起動
 if (import.meta.url === `file://${process.argv[1]}`) {
   const server = new NewsMCPServer();
   server.start().catch(error => {
